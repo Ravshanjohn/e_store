@@ -12,6 +12,32 @@ export const getCoupon = async (req, res) => {
 	}
 };
 
+export const createCoupon = async (req, res) => {
+	try {
+		const { code, discountPercentage, expirationDate } = req.body;
+		
+		// Check if coupon already exists for user
+		const existingCoupon = await Coupon.findOne({ userId: req.user._id });
+		if (existingCoupon) {
+			return res.status(400).json({ message: "User already has a coupon" });
+		}
+
+		const coupon = new Coupon({
+			code,
+			discountPercentage,
+			expirationDate: new Date(expirationDate),
+			userId: req.user._id,
+			isActive: true,
+		});
+
+		await coupon.save();
+		res.status(201).json(coupon);
+	} catch (error) {
+		console.log("Error in createCoupon controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
 export const validateCoupon = async (req, res) => {
 	try {
 		const { code } = req.body;

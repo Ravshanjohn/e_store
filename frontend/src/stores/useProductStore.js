@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import axios from "../lib/axios";
 
 export const useProductStore = create((set) => ({
@@ -15,6 +15,7 @@ export const useProductStore = create((set) => ({
 				products: [...prevState.products, res.data],
 				loading: false,
 			}));
+			toast.success("Product created successfully");
 		} catch (error) {
 			toast.error(error.response.data.error);
 			set({ loading: false });

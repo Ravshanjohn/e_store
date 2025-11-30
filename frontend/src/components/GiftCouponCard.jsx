@@ -1,17 +1,22 @@
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useCartStore } from "../stores/useCartStore";
 
 const GiftCouponCard = () => {
 	const [userInputCode, setUserInputCode] = useState("");
+	const autoAppliedRef = useRef(false);
 	const { coupon, isCouponApplied, applyCoupon, getMyCoupon, removeCoupon } = useCartStore();
 
 	useEffect(() => {
 		getMyCoupon();
-	}, []);
+	}, [getMyCoupon]);
 
 	useEffect(() => {
-		if (coupon) setUserInputCode(coupon.code);
+		if (coupon && coupon.code && !isCouponApplied && !autoAppliedRef.current) {
+			autoAppliedRef.current = true;
+			setUserInputCode(coupon.code);
+			applyCoupon(coupon.code);
+		}
 	}, [coupon]);
 
 	const handleApplyCoupon = () => {
@@ -42,7 +47,7 @@ const GiftCouponCard = () => {
 						className='block w-full rounded-lg border border-gray-600 bg-gray-700 
             p-2.5 text-sm text-white placeholder-gray-400 focus:border-emerald-500 
             focus:ring-emerald-500'
-						placeholder='Enter code here'
+						placeholder='Enter your code here or get free coupon (GIFTLVXBXH)'
 						value={userInputCode}
 						onChange={(e) => setUserInputCode(e.target.value)}
 						required

@@ -12,19 +12,26 @@ export const useCartStore = create((set, get) => ({
 	getMyCoupon: async () => {
 		try {
 			const response = await axios.get("/coupons");
+			console.log("Coupon fetched:", response.data);
 			set({ coupon: response.data });
 		} catch (error) {
-			console.error("Error fetching coupon:", error);
+			console.error("Error fetching coupon:", error.response?.data || error.message);
+			set({ coupon: null });
 		}
 	},
 	applyCoupon: async (code) => {
 		try {
 			const response = await axios.post("/coupons/validate", { code });
-			set({ coupon: response.data, isCouponApplied: true });
+			// Merge the validation response with the existing coupon data
+			set((state) => ({
+				coupon: { ...state.coupon, ...response.data },
+				isCouponApplied: true,
+			}));
 			get().calculateTotals();
 			toast.success("Coupon applied successfully");
 		} catch (error) {
 			toast.error(error.response?.data?.message || "Failed to apply coupon");
+			set({ isCouponApplied: false });
 		}
 	},
 	removeCoupon: () => {
