@@ -13,15 +13,18 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.8.0",
+    "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "ioredis": "^5.8.2",
-    "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.19.3",
+    "postgres": "^3.4.7",
     "stripe": "^19.3.0"
   },
   "devDependencies": {
