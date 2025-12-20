@@ -1,7 +1,7 @@
 import { database } from "../lib/db.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../lib/utils.js";
-import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetEmail, sendResetSuccessEmail } from "../email/email.js";
+import { sendWelcomeEmail, sendPasswordResetEmail, sendResetSuccessEmail, sendVerificationEmail } from "../email/email.js";
 
 
 export const signup = async (req, res) => {
@@ -28,6 +28,33 @@ export const signup = async (req, res) => {
 
 		if(newUserError) throw newUserError;
 
+		const token = await generateToken(newUser[0].id, res); 
+
+		// Sending email
+		const {data: canSend, error: canSendError} = await database.rpc('can_send_email', {p_user_id: newUser[0].id, p_email_type: 'verification_email'});
+
+		if(canSendError) throw canSendError;
+
+		if(canSend === true){
+			const isSent = await sendVerificationEmail(email, token, newUser[0].first_name);
+
+			if(!isSent){
+				return res.status(400).json({message: "Message is not sent(Error in signup controller)"});
+			};
+		}else{
+			return res.status(400).json({message: 'Email limit reached or cooldown active'});
+		};
+
+		const expires = new Date();
+		expires.setDate(expires.getDate() + 7); // 7days
+		
+		await database.from('tokens').insert({
+			user_id: newUser[0].id,
+			token,
+			expires,
+			revoked: false,
+		});
+
 		return res.status(201).json({ user: newUser[0], message: "User created successfully.Please verify your email" });
 	} catch (error) {
 		console.log("Error in signup controller", error.message);
@@ -43,10 +70,11 @@ export const login = async (req, res) => {
 
 		const trimmedEmail = email.toLowerCase().trim();
 
-		const { data: user, error } = await database.from('users').select('*').eq('email', trimmedEmail).single();
+		const { data, error } = await database.from('users').select('*').eq('email', trimmedEmail).limit(1);
 
 		if(error) throw error;
 		
+		const user = data?.[0];
 		if(!user){
 			return res.status(401).json({ message: "Invalid email or password"});
 		};
@@ -62,12 +90,13 @@ export const login = async (req, res) => {
 		const expires = new Date();
 		expires.setHours(expires.getHours() + 24 * 7); // 7days
 		
-		
+		await database.from('tokens').update({revoked: true,}).eq('user_id', user.id).eq('revoked', false);
+
 		await database.from('tokens').insert({
-			user_id: user.id,
+			'user_id': user.id,
 			token,
 			expires,
-			revoked: false,
+			revoked: false
 		});
 		
 		return res.status(200).json({
@@ -86,6 +115,45 @@ export const login = async (req, res) => {
 		return res.status(500).json({ message: error.message });
 	}
 };
+
+export const verifyEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const { data: user, error } = await database
+      .from('users')
+      .select('id, first_name, is_verified')
+      .eq('email', email)
+      .single();
+
+    if (error) throw error;
+    if (!user) return res.status(400).json({ message: "User not registered yet" });
+    if (user.is_verified) return res.status(400).json({ message: "User already verified email" });
+
+    // Call SQL function which also increments usage
+    const { data: canSend, error: canSendError } = await database.rpc('can_send_email', {
+      p_user_id: user.id,
+      p_email_type: 'verification_email'
+    });
+
+    if (canSendError) throw canSendError;
+
+    if (canSend) {
+      const token = generateToken(user.id, res); 
+      const isSent = await sendVerificationEmail(email, token, user.first_name);
+
+      if (!isSent) return res.status(400).json({ message: "Message not sent" });
+
+      return res.status(200).json({ message: "Verification email sent successfully" });
+    } else {
+      return res.status(400).json({ message: 'Email limit reached or cooldown active' });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
+
 
 export const logout = async (req, res) => {
 	try {

@@ -20,7 +20,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
         Verify Email
       </a>
     </div>
-    <p>This link will expire in 8 hours for security reasons.</p>
+    <p>This link will expire in 24 hours for security reasons.</p>
     <p>Best regards,<br>{senderName}</p>
   </div>
   <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.8em;">
