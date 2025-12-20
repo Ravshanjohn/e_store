@@ -17,7 +17,7 @@ export const protectRoute = async (req, res, next) => {
 
 		const { data, error } = await database
 			.from("users")
-			.select("id, name, email, role, is_verified")
+			.select("id, first_name, last_name, email, role, is_verified")
 			.eq("id", decoded.id)
 			.single();
 

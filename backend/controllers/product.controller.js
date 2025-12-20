@@ -1,12 +1,8 @@
-
-import cloudinary from "../lib/cloudinary.js";
-import Product from "../models/product.model.js";
-import { database } from "../lib/db.js"
-import { features } from "process";
+import { database } from "../lib/db.js";
 
 export const getAllProducts = async (req, res) => {
 	try {
-		const {data, error} = await database.from('products').select('id, name, sale_price, is_featured, image_url, category');
+		const {data, error} = await database.from('products').select('*');
 
 		if(error) throw error;
 
@@ -32,9 +28,9 @@ export const getFeaturedProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, original_price, sale_price, is_featured, image_url, category } = req.body;
+		const { name, original_price, sale_price, is_featured, image_url, category, stock } = req.body;
 
-		if( !name || !original_price || !sale_price || !is_featured || !image_url || category === "indefined" || !category){
+		if( !name || !original_price || !sale_price || !is_featured || !image_url || category === "indefined" || !category || !stock ){
 			return res.status(400).json({ message: "All fields required" });
 		};
 		
@@ -49,7 +45,7 @@ export const createProduct = async (req, res) => {
 			return res.status(400).json({ message: "Product exists" });
 		}
 
-		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, is_featured, image_url, category}]).select('id, name, sale_price, is_featured, image_url, category');
+		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, is_featured, image_url, category, stock}]).select('*');
 
 		if(error) throw error;
 
@@ -68,7 +64,15 @@ export const deleteProduct = async (req, res) => {
       return res.status(400).json({ message: "Invalid product id" });
     }
 
-		const {data, error} = await database.from('products').delete().eq('id', id).select('id, name');
+		const {data: findProduct, error: errorFindingPRoduct} = await database.from('products').select('*').eq('id', id);
+
+		if(errorFindingPRoduct) throw errorFindingPRoduct;
+
+		if (!findProduct || findProduct.length === 0) {
+      return res.status(404).json({ message: "Product does not exist" });
+    }
+
+		const {data, error} = await database.from('products').delete().eq('id', id).select('*');
 
 		if(error) throw error;
 
@@ -76,7 +80,7 @@ export const deleteProduct = async (req, res) => {
 			return res.status(404).json({message: "Product not found"})
 		}
 
-		return res.json({ message: `Product ${data[0].name} deleted successfully` });
+		return res.status(200).json({ message: "Product deleted successfully:", data: data[0] });
 	} catch (error) {
 		console.log("Error in deleteProduct controller", error.message);
 		return res.status(500).json({ message: "Server error", error: error.message });
@@ -87,7 +91,7 @@ export const deleteProduct = async (req, res) => {
 export const getProductsByCategory = async (req, res) => {
 	const { category } = req.params;
 	try {
-		const {data, error} = await database.from('products').select('id, name, sale_price, image_url, is_featured, category').eq('category', category)
+		const {data, error} = await database.from('products').select('id, name, sale_price, image_url, is_featured, category, stock').eq('category', category)
 		return res.status(200).json({data});
 	} catch (error) {
 		console.log("Error in getProductsByCategory controller", error.message);
@@ -102,6 +106,8 @@ export const toggleFeaturedProduct = async (req, res) => {
 		const { data: existingProduct, error:fetchError } = await database.from('products').select('id, is_featured').eq('id', id).single();
 
 		if( fetchError ) return res.status(404).json({message: "Product not found"});
+
+		if(!existingProduct) return res.status(404).json({message: "Product not found"})
 
 		const {error: updateError} = await database.from('products').update({ is_featured: !existingProduct.is_featured }).eq('id', id).single();
 
