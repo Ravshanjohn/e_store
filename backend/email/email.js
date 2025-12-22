@@ -1,7 +1,7 @@
 import { PASSWORD_RESET_REQUEST_TEMPLATE, PASSWORD_RESET_SUCCESS_TEMPLATE, VERIFICATION_EMAIL_TEMPLATE, WELCOME_EMAIL_TEMPLATE } from "./email.templates.js";
 import { mailtrapClient, sender } from "./email.config.js";
 
-export const sendVerificationEmail = async (email, verificatioToken, receiverName) => {
+export const sendVerificationEmail = async (email, verificatioToken) => {
   const recipient = [{ email }];
   try {
     await mailtrapClient.send({
@@ -9,12 +9,11 @@ export const sendVerificationEmail = async (email, verificatioToken, receiverNam
       to: recipient,
       subject: "Verify your email",
       html: VERIFICATION_EMAIL_TEMPLATE.replace("{verificationCode}", verificatioToken)
-      .replace(
-        "{senderName}",
-        sender.name
-      )
-      .replace("{verificationURL}", `${process.env.CLIENT_URL}/email-verification/${verificatioToken}`)
-      .replace("{receiverName}", receiverName),
+        .replace(
+          "{senderName}",
+          sender.name
+        )
+        .replace("{verificationURL}", `${process.env.CLIENT_URL}/email-verification/${verificatioToken}`),
       category: "Email Verification",
     });
     return true;
@@ -24,7 +23,7 @@ export const sendVerificationEmail = async (email, verificatioToken, receiverNam
   }
 };
 
-export const sendWelcomeEmail = async (email, first_name) => {
+export const sendWelcomeEmail = async (email) => {
   const recipient = [{ email }];
 
   try {
@@ -32,8 +31,7 @@ export const sendWelcomeEmail = async (email, first_name) => {
       from: sender,
       to: recipient,
       subject: "Welcome to My Chat App!",
-      html: WELCOME_EMAIL_TEMPLATE.replace("{fullName}", first_name)
-                                  .replace("{senderName}", sender.name),
+      html: WELCOME_EMAIL_TEMPLATE.replace("{senderName}", sender.name),
       category: "Welcome Email",  
     });
     return true;

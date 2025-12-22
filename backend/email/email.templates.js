@@ -11,7 +11,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
     <h1 style="color: #fff; margin: 0;">Verify Your Email</h1>
   </div>
   <div style="background-color: #f9f9f9; padding: 20px; border-radius: 0 0 5px 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-    <p>Hello {receiverName},</p>
+    <p>Hello,</p>
     <p>Thank you for signing up! Please verify your email address to complete your registration.</p>
     <p>Click the button below to confirm your email:</p>
     <div style="text-align: center; margin: 30px 0;">
@@ -20,7 +20,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
         Verify Email
       </a>
     </div>
-    <p>This link will expire in 24 hours for security reasons.</p>
+    <p>This link will expire in 8 hours for security reasons.</p>
     <p>Best regards,<br>{senderName}</p>
   </div>
   <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.8em;">
@@ -111,13 +111,13 @@ export const WELCOME_EMAIL_TEMPLATE = `
     <h1 style="color: white; margin: 0;">Welcome to My Chat App!</h1>
   </div>
   <div style="background-color: #f9f9f9; padding: 20px; border-radius: 0 0 5px 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-    <p>Hi {firstName},</p>
+    <p>Hi,</p>
     <p>I'm thrilled to have you here! Thank you for signing up for my e_commerce_store.</p>
     <p>Here are a few tips to help you get started:</p>
     <ul>
       <li>Explore the features and customize your profile.</li>
       <li>Browse products, including featured items.</li>
-      <li>Order the products you like.</li>
+      <li>Order products you like.</li>
     </ul>
     <p>I want you to have the best possible experience with this e_commerce_store. If you ever need help, have questions, or want to suggest improvements, I’m always here to assist you.</p>
     <p>Once again, welcome aboard! We're excited to have you with us.</p>
