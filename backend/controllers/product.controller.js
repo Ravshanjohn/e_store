@@ -28,11 +28,14 @@ export const getFeaturedProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, original_price, sale_price, is_featured, image_url, category, stock } = req.body;
+		const { name, original_price, sale_price, is_featured, image_url, category, stock, description } = req.body;
+		const required = {name, original_price, sale_price, is_featured, image_url, category, stock, description};
 
-		if( !name || !original_price || !sale_price || !is_featured || !image_url || category === "indefined" || !category || !stock ){
-			return res.status(400).json({ message: "All fields required" });
-		};
+		for(let[key, value] of Object.entries(required)){
+			if(!value) return res.status(400).json({message: `${key} is required`});
+		}
+		if(sale_price <= original_price) return res.status(400).json({message: "Please check the sale and original price"})
+		
 		
 		const { data: existingProducts, err } = await database
 			.from('products')
@@ -45,7 +48,7 @@ export const createProduct = async (req, res) => {
 			return res.status(400).json({ message: "Product exists" });
 		}
 
-		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, is_featured, image_url, category, stock}]).select('*');
+		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, is_featured, image_url, category, stock, description}]).select('*');
 
 		if(error) throw error;
 
@@ -120,3 +123,83 @@ export const toggleFeaturedProduct = async (req, res) => {
 		return res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
+
+//Review
+export const productReview = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { productId } = req.params;
+    const parsedProductId = Number(productId);
+    if (isNaN(parsedProductId)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
+    const { rating, review } = req.body;
+
+    // Validate rating and review
+    if (rating === undefined || rating === null) {
+      return res.status(400).json({ message: "Rating is required" });
+    }
+    if (!review || !review.trim()) {
+      return res.status(400).json({ message: "Review cannot be empty" });
+    }
+    const trimmedReview = review.trim();
+    if (trimmedReview.length > 500) {
+      return res.status(400).json({ message: "Review cannot exceed 500 characters" });
+    }
+    const parsedRating = Number(rating);
+    if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return res.status(400).json({ message: "Rating must be a number between 1 and 5" });
+    }
+
+    // Check if product exists
+    const { data: product, error: productError } = await database
+      .from('products')
+      .select('id')
+      .eq('id', parsedProductId)
+      .single();
+
+    if (productError || !product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Check if user exists 
+    const { data: user, error: userError } = await database
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { data: existingReview } = await database
+      .from('product_reviews')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('product_id', parsedProductId)
+      .single();
+
+    if (existingReview) {
+      return res.status(400).json({ message: "You have already reviewed this product" });
+    }
+
+    // Insert review
+    const { error } = await database.from('product_reviews').insert({
+      product_id: parsedProductId,
+      user_id: userId,
+      rating: parsedRating,
+      review: trimmedReview,
+    });
+
+    if (error) throw error;
+
+    return res.status(200).json({ message: "Thank you! Your review has been posted." });
+  } catch (error) {
+    console.error("Error in productReview controller:", error.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+

@@ -34,10 +34,21 @@ export const protectRoute = async (req, res, next) => {
 	}
 };
 
+export const verifiedEmail = (req, res, next) => {
+  if (!req.user.is_verified) {
+    return res.status(403).json({ message: "Not verified user" });
+  }
+  next();
+};
+
 export const adminRoute = (req, res, next) => {
-	if (req.user && req.user.role === "admin") {
-		next();
-	} else {
-		return res.status(403).json({ message: "Access denied - Admin only" });
-	}
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Admin only" });
+  }
+
+  next();
 };
