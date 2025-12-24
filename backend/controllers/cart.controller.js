@@ -1,20 +1,14 @@
-import Product from "../models/product.model.js";
+import { database } from "../lib/db.js";
 
 export const getCartProducts = async (req, res) => {
+	const userId = req.user.id;
+	if (!userId) return res.status(400).json({ message: "User not found" });
+
 	try {
-		// Clean up any invalid items
-		req.user.cartItems = req.user.cartItems.filter(item => item && item.product);
-		await req.user.save();
+		const {data, error} = await database.from('cart_items').select('product_id, quantity').eq("user_id", userId);
+		if(error) return res.status(400).json({ message: "Error fetching data" });
 
-		const productIds = req.user.cartItems.map(item => item.product);
-		const products = await Product.find({ _id: { $in: productIds } });
-
-		const cartItems = products.map((product) => {
-			const item = req.user.cartItems.find((cartItem) => cartItem.product.toString() === product._id.toString());
-			return { ...product.toJSON(), quantity: item?.quantity || 1 };
-		});
-
-		res.json(cartItems);
+		return res.status(200).json(data)
 	} catch (error) {
 		console.log("Error in getCartProducts controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
@@ -22,74 +16,70 @@ export const getCartProducts = async (req, res) => {
 };
 
 export const addToCart = async (req, res) => {
-	try {
-		const { productId } = req.body;
-		const user = req.user;
-
-		// Clean up any invalid items first
-		user.cartItems = user.cartItems.filter(item => item && item.product);
-
-		const existingItem = user.cartItems.find((item) => item.product.toString() === productId);
-		if (existingItem) {
-			existingItem.quantity += 1;
-		} else {
-			user.cartItems.push({ product: productId, quantity: 1 });
-		}
-
-		await user.save();
-		res.json(user.cartItems);
-	} catch (error) {
-		console.log("Error in addToCart controller", error.message);
-		res.status(500).json({ message: "Server error", error: error.message });
+	const userId = req.user.id;
+	const {productId, quantity} = req.body;
+	if(!userId) return res.status(400).json({ message: "User not found" });
+	const qty = Number(quantity);
+	if (Number.isNaN(qty) || qty < 1) {
+		return res.status(400).json({ message: "Quantity must be at least 1" });
 	}
-};
 
-export const removeAllFromCart = async (req, res) => {
 	try {
-		const { productId } = req.body;
-		const user = req.user;
-		
-		// Clean up any invalid items
-		user.cartItems = user.cartItems.filter(item => item && item.product);
-		
-		if (!productId) {
-			user.cartItems = [];
-		} else {
-			user.cartItems = user.cartItems.filter((item) => item.product.toString() !== productId);
-		}
-		await user.save();
-		res.json(user.cartItems);
+		const {error} = await database.rpc('add_or_update_cart_items', {
+			p_user_id: userId,
+			p_product_id: productId,
+			p_quantity: qty
+		});
+		if(error) return res.status(400).json({ message: "Error updating cart", error });
+
+		return res.status(200).json({message: "Added to the cart"});
 	} catch (error) {
+		console.error("Error in addToCart controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
 
 export const updateQuantity = async (req, res) => {
+	const {direction, productId} = req.body;
+	const userId = req.user.id;
+	if (!["plus", "minus"].includes(direction)) return res.status(400).json({ message: "direction not defined" });	
+	if (!userId) return res.status(400).json({ message: "User not found" });
+
 	try {
-		const { id: productId } = req.params;
-		const { quantity } = req.body;
-		const user = req.user;
-		
-		// Clean up any invalid items
-		user.cartItems = user.cartItems.filter(item => item && item.product);
-		
-		const existingItem = user.cartItems.find((item) => item.product.toString() === productId);
+		const{data: findProduct, error: fetchingProduct} = await database.from('cart_items')
+			.select().eq("product_id", productId).eq("user_id", userId).maybeSingle();
 
-		if (existingItem) {
-			if (quantity === 0) {
-				user.cartItems = user.cartItems.filter((item) => item.product.toString() !== productId);
-				await user.save();
-				return res.json(user.cartItems);
-			}
+		if(fetchingProduct) return res.status(400).json({ message: "DB error"});
+		if(!findProduct) return res.status(400).json({ message: "Product not found" });
+		const {error} = await database.rpc('update_cart_quantity', {
+			p_user_id: userId,
+			p_product_id: productId,
+			p_direction: direction
+		});
 
-			existingItem.quantity = quantity;
-			await user.save();
-			res.json(user.cartItems);
-		} else {
-			res.status(404).json({ message: "Product not found" });
-		}
+		if(error) return res.status(400).json({message: "Error updating quantity"});
+
+		return res.status(200).json({message: "Quantity updated" });
 	} catch (error) {
-		console.log("Error in updateQuantity controller", error.message);
-		res.status(500).json({ message: "Server error", error: error.message });
+		console.error("updateQuantity error:", error.message);
+		return res.status(500).json({ message: "Server error" });
 	}
 };
+
+export const removeAllFromCart = async (req, res) => {
+	const userId = req.user.id;
+	const {productId} = req.body;
+	if (!userId) return res.status(400).json({ message: "User not found" });
+	if (!productId) return res.status(400).json({ message: "Product ID is required" });
+
+	try {
+		const {error} = await database.from('cart_items').delete().eq('product_id', productId).eq('user_id', userId);
+		if(error) return res.status(400).json({message: "Error deleting cart item"});
+
+		return res.status(200).json({ message: "Deleted succussfully" });
+	} catch (error) {
+		console.error("removeAllFromCart error:", error.message);
+		return res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
