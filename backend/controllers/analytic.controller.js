@@ -1,22 +1,22 @@
-import Order from "../models/order.model.js";
-import Product from "../models/product.model.js";
-import User from "../models/user.model.js";
+import { database } from "../lib/db.js";
 
 export const getAnalyticsData = async () => {
-	const totalUsers = await User.countDocuments();
-	const totalProducts = await Product.countDocuments();
+	const {data: totalUsers, error: totalUsersError } = await database.rpc('get_all_users');
+	if(totalUsersError) throw totalUsersError;
+	if(!totalUsers) return 'Users not found'
 
-	const salesData = await Order.aggregate([
-		{
-			$group: {
-				_id: null, // it groups all documents together,
-				totalSales: { $sum: 1 },
-				totalRevenue: { $sum: "$totalAmount" },
-			},
-		},
-	]);
+	const {data: totalProducts, error: totalProductsError} = await database.rpc('get_all_products');
+	if(totalProductsError) throw totalProductsError;
+	if(!totalProducts) return 'Products not found';
 
-	const { totalSales, totalRevenue } = salesData[0] || { totalSales: 0, totalRevenue: 0 };
+
+	const {data: totalRevenue, error: totalRevenueError} = await database.rpc('get_revenue');
+	if(totalRevenueError) throw totalRevenueError;
+	if(!totalRevenue) return 'Error with get_revenue';
+
+	const {data: totalSales, error: totalSalesError} = await database.rpc('get_total_sales');
+	if(totalSalesError) throw totalSalesError;
+	if(!totalSales) return 'Total sales not found';
 
 	return {
 		users: totalUsers,
@@ -26,61 +26,26 @@ export const getAnalyticsData = async () => {
 	};
 };
 
-export const getDailySalesData = async (startDate, endDate) => {
+export const totalRevenueByMonth = async (req, res) => {
 	try {
-		const dailySalesData = await Order.aggregate([
-			{
-				$match: {
-					createdAt: {
-						$gte: startDate,
-						$lte: endDate,
-					},
-				},
-			},
-			{
-				$group: {
-					_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-					sales: { $sum: 1 },
-					revenue: { $sum: "$totalAmount" },
-				},
-			},
-			{ $sort: { _id: 1 } },
-		]);
-
-		// example of dailySalesData
-		// [
-		// 	{
-		// 		_id: "2024-08-18",
-		// 		sales: 12,
-		// 		revenue: 1450.75
-		// 	},
-		// ]
-
-		const dateArray = getDatesInRange(startDate, endDate);
-		// console.log(dateArray) // ['2024-08-18', '2024-08-19', ... ]
-
-		return dateArray.map((date) => {
-			const foundData = dailySalesData.find((item) => item._id === date);
-
-			return {
-				name: date,
-				sales: foundData?.sales || 0,
-				revenue: foundData?.revenue || 0,
-			};
-		});
+		const { data, error } = await database.rpc("revenue_by_month");
+		if (error) return res.status(500).json({ message: error.message });
+		return res.status(200).json(data);
 	} catch (error) {
-		throw error;
+		console.error("Error with totalRevenueByMonth controller", error.message);
+		return res.status(500).json({ message: "Internal server error"})
 	}
-};
-
-function getDatesInRange(startDate, endDate) {
-	const dates = [];
-	let currentDate = new Date(startDate);
-
-	while (currentDate <= endDate) {
-		dates.push(currentDate.toISOString().split("T")[0]);
-		currentDate.setDate(currentDate.getDate() + 1);
-	}
-
-	return dates;
 }
+//revenue_by_day
+
+export const totalRevenueByDay = async (req, res) => {
+	try {
+		const { data, error } = await database.rpc("revenue_by_day");
+		if (error) return res.status(500).json({ message: error.message });
+		return res.status(200).json(data);
+	} catch (error) {
+		console.error("Error with totalRevenueByDay controller", error.message);
+		return res.status(500).json({ message: "Internal server error"})
+	}
+}
+
