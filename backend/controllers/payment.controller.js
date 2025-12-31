@@ -1,199 +1,224 @@
-import Coupon from "../models/coupon.model.js";
-import Order from "../models/order.model.js";
-import User from "../models/user.model.js";
 import { stripe } from "../lib/stripe.js";
+import { database } from "../lib/db.js";
 
 export const createCheckoutSession = async (req, res) => {
-	try {
-		const { products, couponCode } = req.body;
+  const { products, couponCode } = req.body;
+	const userId = req.user?.id;
 
-		if (!Array.isArray(products) || products.length === 0) {
-			return res.status(400).json({ error: "Invalid or empty products array" });
-		}
+  if (!userId) return res.status(400).json({ message: "User not found" });
 
-		let totalAmount = 0;
+  try {
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: "Invalid or empty products array" });
+    }
 
-		const lineItems = products.map((product) => {
-			const amount = Math.round(product.price * 100); // stripe wants u to send in the format of cents
-			totalAmount += amount * product.quantity;
+		//Product ids from the request
+    const productIds = products.map(p => p.product_id);
+
+    const { data: dbProducts, error: dbProductsError } = await database
+      .from("products")
+      .select("id, sale_price, name, image_url")
+      .in("id", productIds);
+
+    if (dbProductsError) throw dbProductsError;
+
+		// Map db products by id for easy lookup
+    const dbProductMap = {};
+    dbProducts.forEach(p => dbProductMap[p.id] = p);
+
+    let totalAmount = 0;
+
+		// Prepare line items for Stripe
+    const lineItems = products.map(item => {
+      const dbProduct = dbProductMap[item.product_id];
+      const unit = Math.round(dbProduct.sale_price * 100);
+
+      totalAmount += unit * (item.quantity || 1);
+
+      return {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: dbProduct.name,
+            images: [dbProduct.image_url],
+          },
+          unit_amount: unit
+        },
+        quantity: item.quantity || 1
+      };
+    });
+
+		// Apply coupon if provided
+    if (couponCode) {
+      const { data: coupon } = await database
+        .from("coupons")
+        .select("discount_value, discount_type")
+        .eq("code", couponCode)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (!coupon) return res.status(400).json({ message: "Coupon not found" });
+
+      if (coupon.discount_type === "percentage") {
+        totalAmount -= Math.round(totalAmount * coupon.discount_value / 100);
+      } else {
+        totalAmount -= Math.round(coupon.discount_value * 100);
+      }
+    }
+
+    // find or create pending order
+    let { data: order } = await database
+      .from("orders")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+		// create new order if not found
+    if (!order) {
+      const {data: result, error: insertError} = await database
+        .from("orders")
+        .insert({
+          user_id: userId,
+          total_amount: totalAmount / 100,
+          status: "pending"
+        })
+        .select()
+        .single();
+			if (insertError) throw insertError;	
+			order = result;				
+    } else {
+			// update total amount if order exists
+			const {data: result, error: updateError } = await database
+			.from("orders")
+			.update({ total_amount: totalAmount / 100 })
+			.eq("id", order.id)
+			.eq("user_id", userId)
+			.eq("status", "pending")
+			.select()
+			.single();
+			if (updateError) throw updateError;	
+			order = result;
+    };
+		
+    // reuse existing stripe session if exists
+    if (order.checkout_session_id) {
+      return res.json({
+        id: order.checkout_session_id,
+        url: order.checkout_session_url,
+        totalAmount
+      });
+    }
+
+    //  delete old cart rows
+    await database
+      .from("cart_items")
+      .delete()
+      .eq("user_id", userId);
+
+    // insert new ones
+    const orderItems = products.map(item => {
+			const product = dbProducts.find(p => p.id === item.product_id);
+
+			if (!product) {
+				throw new Error(`Product not found: ${item.product_id}`);
+			}
 
 			return {
-				price_data: {
-					currency: "usd",
-					product_data: {
-						name: product.name,
-						images: [product.image],
-					},
-					unit_amount: amount,
-				},
-				quantity: product.quantity || 1,
+				order_id: order.id,
+				product_id: product.id,
+				quantity: item.quantity ?? 1,
+				price: product.sale_price
 			};
 		});
 
-		let coupon = null;
-		if (couponCode) {
-			coupon = await Coupon.findOne({ code: couponCode, userId: req.user._id, isActive: true });
-			if (coupon) {
-				totalAmount -= Math.round((totalAmount * coupon.discountPercentage) / 100);
-			}
-		}
 
-		// Get the base URL from environment or construct from request
-		const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
+    await database.from("order_items").insert(orderItems);
 
-		const session = await stripe.checkout.sessions.create({
-			payment_method_types: ["card"],
-			line_items: lineItems,
-			mode: "payment",
-			success_url: `${clientUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-			cancel_url: `${clientUrl}/purchase-cancel`,
-			discounts: coupon
-				? [
-						{
-							coupon: await createStripeCoupon(coupon.discountPercentage),
-						},
-				  ]
-				: [],
-			metadata: {
-				userId: req.user._id.toString(),
-				couponCode: couponCode || "",
-				products: JSON.stringify(
-					products.map((p) => ({
-						id: p._id,
-						quantity: p.quantity,
-						price: p.price,
-					}))
-				),
+    //  create stripe session (idempotent)
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      mode: "payment",
+      success_url: `${process.env.CLIENT_URL}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL}/purchase-cancel`,
+      metadata: { userId, orderId: order.id, couponCode: couponCode || "" }
+    }, {
+      idempotencyKey: `checkout_${order.id}`
+    });
+
+    // update payment record
+		const {data: paymetnUpdate, error: paymentUpdateError } = await database
+			.from("payments")
+			.upsert({ 
+				order_id: order.id, 
+				user_id: userId, 
+				payment_method: 'stripe', 
+				amount: totalAmount / 100, 
+				status: "pending", 
+				transaction_id: session.id 
 			},
-		});
+			{ onConflict: ["order_id"] })
+			.select()
+			.single();
+		if(paymentUpdateError) throw paymentUpdateError;
+		if(!paymetnUpdate ) {
+			throw new Error('Failed to create or update payment record');
+		};
 
-		res.status(200).json({ id: session.id, url: session.url, totalAmount: totalAmount / 100 });
-	} catch (error) {
-		console.error("Error processing checkout:", error);
-		res.status(500).json({ message: "Error processing checkout", error: error.message });
-	}
+    res.json({ id: session.id, url: session.url, totalAmount: totalAmount / 100 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Checkout failed" });
+  }
 };
 
 export const checkoutSuccess = async (req, res) => {
-	try {
-		const { sessionId } = req.body;
-		console.log('Processing checkout success for session:', sessionId);
-		
-		if (!sessionId) {
-			return res.status(400).json({ message: "Session ID is required" });
-		}
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ message: "Session ID is required" });
 
-		// Check if order already exists FIRST to prevent duplicate processing
-		const existingOrder = await Order.findOne({ stripeSessionId: sessionId });
-		if (existingOrder) {
-			console.log('Order already exists for this session, skipping duplicate processing');
-			return res.status(200).json({
-				success: true,
-				message: "Order already processed",
-				orderId: existingOrder._id,
-			});
-		}
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== "paid") return res.status(400).json({ message: "Payment not completed" });
 
-		let session;
-		try {
-			session = await stripe.checkout.sessions.retrieve(sessionId);
-			console.log('Session retrieved successfully');
-			console.log('Payment status:', session.payment_status);
-		} catch (stripeError) {
-			console.error('Stripe session retrieval error:', stripeError.message);
-			return res.status(400).json({ message: "Invalid session ID", error: stripeError.message });
-		}
+    const userId = session.metadata.userId;
+    const orderId = session.metadata.orderId;
 
-		// Clear cart regardless of payment status (for testing purposes)
-		const userId = session.metadata?.userId || req.user._id;
-		console.log('Clearing cart for user:', userId);
-		
-		await User.findByIdAndUpdate(userId, { cartItems: [] });
-		console.log('Cart cleared successfully');
+    // Update order status
+    const { data: updatedOrder, error: orderError } = await database
+      .from("orders")
+      .update({ status: "processing" })
+      .eq("id", orderId)
+      .eq("user_id", userId)
+      .select()
+      .single();
+    if (orderError) throw orderError;
 
-		if (session.payment_status === "paid") {
+    // Update payment record
+    const { data: paymentUpdate, error: paymentUpdateError } = await database
+      .from("payments")
+      .upsert(
+        {
+          order_id: orderId,
+          user_id: userId,
+          payment_method: "stripe",
+          amount: session.amount_total / 100,
+          status: "completed",
+          transaction_id: sessionId,
+          paid_at: new Date().toISOString()
+        },
+        { onConflict: ["order_id"] }
+      )
+      .select()
+      .single();
+    if (paymentUpdateError) throw paymentUpdateError;
 
-			if (session.metadata.couponCode) {
-				await Coupon.findOneAndUpdate(
-					{
-						code: session.metadata.couponCode,
-						userId: session.metadata.userId,
-					},
-					{
-						isActive: false,
-					}
-				);
-			}
-
-			// create a new Order
-			const products = JSON.parse(session.metadata.products);
-			const newOrder = new Order({
-				user: session.metadata.userId,
-				products: products.map((product) => ({
-					product: product.id,
-					quantity: product.quantity,
-					price: product.price,
-				})),
-				totalAmount: session.amount_total / 100,
-				stripeSessionId: sessionId,
-			});
-
-		await newOrder.save();
-		console.log('Order created successfully');
-
-		// Create new coupon for future use if order total >= $20
-		if (session.amount_total >= 2000) {
-			console.log('Order qualifies for coupon. Total:', session.amount_total / 100);
-			try {
-				const newCoupon = await createNewCoupon(session.metadata.userId);
-				console.log('New coupon created:', newCoupon.code);
-			} catch (couponError) {
-				console.error('Error creating coupon:', couponError.message);
-				// Don't fail the order if coupon creation fails
-			}
-		}
-
-		res.status(200).json({
-				success: true,
-				message: "Payment successful, order created, and cart cleared.",
-				orderId: newOrder._id,
-			});
-		} else {
-			// Even if not paid, return success for cart clearing
-			res.status(200).json({
-				success: true,
-				message: "Cart cleared. Payment status: " + session.payment_status,
-			});
-		}
-	} catch (error) {
-		console.error("Error processing successful checkout:", error);
-		console.error("Error stack:", error.stack);
-		res.status(500).json({ message: "Error processing successful checkout", error: error.message });
-	}
+    res.json({ message: "Checkout successful", order: updatedOrder, payment: paymentUpdate.status });
+  } catch (error) {
+    console.error("Error processing successful checkout:", error);
+    res.status(500).json({ message: "Error processing successful checkout", error: error.message });
+  }
 };
 
-async function createStripeCoupon(discountPercentage) {
-	const coupon = await stripe.coupons.create({
-		percent_off: discountPercentage,
-		duration: "once",
-	});
 
-	return coupon.id;
-}
 
-async function createNewCoupon(userId) {
-	console.log('Creating new coupon for user:', userId);
-	await Coupon.findOneAndDelete({ userId });
 
-	const newCoupon = new Coupon({
-		code: "GIFT" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-		discountPercentage: 10,
-		expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-		userId: userId,
-	});
-
-	await newCoupon.save();
-	console.log('Coupon saved successfully:', newCoupon.code, 'for user:', userId);
-
-	return newCoupon;
-}

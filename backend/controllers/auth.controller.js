@@ -361,6 +361,21 @@ export const verifyAccount = async (req, res) => {
 	}
 };
 
+export const checkAuthStatus = async (req, res) => {
+	try {
+		const userId = req.user;
+		if (!userId) {
+			return res.status(401).json({ message: "Unauthorized" });
+		}
+
+		res.status(200).json({ message: "Authorized" });
+	} catch (error) {
+		console.error("Error checking auth status:", error);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+
 
 
 

@@ -27,7 +27,8 @@
     "mailtrap": "^4.4.0",
     "mongoose": "^8.19.3",
     "postgres": "^3.4.7",
-    "stripe": "^19.3.0"
+    "stripe": "^19.3.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
