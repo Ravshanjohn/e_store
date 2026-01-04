@@ -252,31 +252,14 @@ export const forgotPassword = async (req, res) => {
 	}
 };
 
-export const logout = async (req, res) => {
-	try {
-		const token = req.cookies?.jwt;
-		
-		if(token){
-			await database.from('tokens').update({ revoked: true }).eq('token', token);
-		};
-		await res.cookie("jwt", '', { httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: "strict",
-			maxAge: 0,
-		});
-		
-		return res.status(200).json({ message: "Logged out successfully" });
-	} catch (error) {
-		console.log("Error in logout controller", error.message);
-		return res.status(500).json({ message: "Server error", error: error.message });
-	}
-};
-
 export const resetPassword = async (req, res) => {
 	try {
 		const {token} = req.params;
 		const {newPassword} = req.body;
 
+		if(newPassword.length < 6){
+			return res.status(400).json({message: "Password must be at least 6 characters long"});
+		}
 		if(!newPassword){
 			return res.status(400).json({message: "Please fill all fields"});
 		}
@@ -296,7 +279,7 @@ export const resetPassword = async (req, res) => {
 		if(userError) throw userError
 		//Hash && Update password
 		const hashedPassword = await bcrypt.hash(newPassword, 10);
-		const{error: updatePasswordError} = await database.from('users').update({password: hashedPassword}).eq('id', user.id);
+		const{error: updatePasswordError} = await database.from('users').update({password: hashedPassword, updated_at: new Date()}).eq('id', user.id);
 		if(updatePasswordError) throw updatePasswordError;
 
 		const isSent = await sendResetSuccessEmail(user.email);
@@ -310,7 +293,27 @@ export const resetPassword = async (req, res) => {
 		console.error(error);
 		return res.status(500).json({ message: 'Internal server error', error: error.message });
 	}
-}
+};
+
+export const logout = async (req, res) => {
+	try {
+		const token = req.cookies?.jwt;
+		
+		if(token){
+			await database.from('tokens').update({ revoked: true }).eq('token', token);
+		};
+		await res.cookie("jwt", '', { httpOnly: true,
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: "strict",
+			maxAge: 0,
+		});
+		
+		return res.status(200).json({ message: "Logged out successfully" });
+	} catch (error) {
+		console.log("Error in logout controller", error.message);
+		return res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
 
 export const verifyAccount = async (req, res) => {
 	try {
@@ -340,10 +343,10 @@ export const verifyAccount = async (req, res) => {
 		};
 
 		//get user
-		const{data: findUser, error: findUserError} = await database.from('users').select('email, is_verfied').eq('id', data.user_id).single();
+		const{data: findUser, error: findUserError} = await database.from('users').select('email, is_verified').eq('id', data.user_id).single();
 		if(findUserError) throw findUserError;
 
-		if(data.is_verified) return res.status(200).json({ message: "User already verified" });
+		if(findUser.is_verified) return res.status(200).json({ message: "User already verified" });
 		//Update users
 		const {error: verifiedError} = await database.from('users').update({is_verified: true}).eq('id', data.user_id);
 		if(verifiedError) throw verifiedError;
@@ -363,15 +366,10 @@ export const verifyAccount = async (req, res) => {
 
 export const checkAuthStatus = async (req, res) => {
 	try {
-		const userId = req.user;
-		if (!userId) {
-			return res.status(401).json({ message: "Unauthorized" });
-		}
-
-		res.status(200).json({ message: "Authorized" });
+		res.status(200).json(req.user);
 	} catch (error) {
 		console.error("Error checking auth status:", error);
-		res.status(500).json({ message: "Server error", error: error.message });
+		return res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
 
