@@ -19,7 +19,7 @@ const ProductCard = ({ product }) => {
 	return (
 		<div className='flex w-full relative flex-col overflow-hidden rounded-lg border border-gray-700 shadow-lg'>
 			<div className='relative mx-3 mt-3 flex h-60 overflow-hidden rounded-xl'>
-				<img className='object-cover w-full' src={product.image} alt='product image' />
+				<img className='object-cover w-full' src={product.image_url} alt='product image' />
 				<div className='absolute inset-0 bg-black bg-opacity-20' />
 			</div>
 
@@ -27,7 +27,7 @@ const ProductCard = ({ product }) => {
 				<h5 className='text-xl font-semibold tracking-tight text-white'>{product.name}</h5>
 				<div className='mt-2 mb-5 flex items-center justify-between'>
 					<p>
-						<span className='text-3xl font-bold text-emerald-400'>${product.price}</span>
+						<span className='text-3xl font-bold text-emerald-400'>${product.sale_price}</span>
 					</p>
 				</div>
 				<button

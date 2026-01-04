@@ -9,9 +9,11 @@ const CreateProductForm = () => {
 	const [newProduct, setNewProduct] = useState({
 		name: "",
 		description: "",
-		price: "",
+		original_price: "",
+		sale_price: "",
 		category: "",
-		image: "",
+		image_url: "",
+		stock: "",
 	});
 
 	const { createProduct, loading } = useProductStore();
@@ -20,7 +22,7 @@ const CreateProductForm = () => {
 		e.preventDefault();
 		try {
 			await createProduct(newProduct);
-			setNewProduct({ name: "", description: "", price: "", category: "", image: "" });
+			setNewProduct({ name: "", description: "", original_price: "", sale_price: "", category: "", image_url: "" });
 		} catch {
 			console.log("error creating a product");
 		}
@@ -32,7 +34,7 @@ const CreateProductForm = () => {
 			const reader = new FileReader();
 
 			reader.onloadend = () => {
-				setNewProduct({ ...newProduct, image: reader.result });
+				setNewProduct({ ...newProduct, image_url: reader.result });
 			};
 
 			reader.readAsDataURL(file); // base64
@@ -84,16 +86,52 @@ const CreateProductForm = () => {
 				</div>
 
 				<div>
-					<label htmlFor='price' className='block text-sm font-medium text-gray-300'>
-						Price
+					<label htmlFor='original_price' className='block text-sm font-medium text-gray-300'>
+						Original Price
 					</label>
 					<input
 						type='number'
-						id='price'
-						name='price'
-						value={newProduct.price}
-						onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+						id='original_price'
+						name='original_price'
+						value={newProduct.original_price}
+						onChange={(e) => setNewProduct({ ...newProduct, original_price: e.target.value })}
 						step='0.01'
+						className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
+						py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
+						 focus:border-emerald-500'
+						required
+					/>
+				</div>
+
+				<div>
+					<label htmlFor='sale_price' className='block text-sm font-medium text-gray-300'>
+						Sale Price
+					</label>
+					<input
+						type='number'
+						id='sale_price'
+						name='sale_price'
+						value={newProduct.sale_price}
+						onChange={(e) => setNewProduct({ ...newProduct, sale_price: e.target.value })}
+						step='0.01'
+						className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
+						py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
+						 focus:border-emerald-500'
+						required
+					/>
+				</div>
+
+				<div>
+					<label htmlFor='stock' className='block text-sm font-medium text-gray-300'>
+						Stock
+					</label>
+					<input
+						type='number'
+						id='stock'
+						name='stock'
+						value={newProduct.stock}
+						onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+						step='1'
 						className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
 						py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
 						 focus:border-emerald-500'

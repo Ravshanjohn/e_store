@@ -55,14 +55,14 @@ export const useCartStore = create((set, get) => ({
 	},
 	addToCart: async (product) => {
 		try {
-			await axios.post("/cart", { productId: product._id });
+			await axios.post("/cart", { productId: product.id, quantity: 1 });
 			toast.success("Product added to cart");
 
 			set((prevState) => {
-				const existingItem = prevState.cart.find((item) => item._id === product._id);
+				const existingItem = prevState.cart.find((item) => item.id === product.id);
 				const newCart = existingItem
 					? prevState.cart.map((item) =>
-							item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
+							item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
 					  )
 					: [...prevState.cart, { ...product, quantity: 1 }];
 				return { cart: newCart };
@@ -74,7 +74,7 @@ export const useCartStore = create((set, get) => ({
 	},
 	removeFromCart: async (productId) => {
 		await axios.delete(`/cart`, { data: { productId } });
-		set((prevState) => ({ cart: prevState.cart.filter((item) => item._id !== productId) }));
+		set((prevState) => ({ cart: prevState.cart.filter((item) => item.id !== productId) }));
 		get().calculateTotals();
 	},
 	updateQuantity: async (productId, quantity) => {
@@ -85,7 +85,7 @@ export const useCartStore = create((set, get) => ({
 
 		await axios.put(`/cart/${productId}`, { quantity });
 		set((prevState) => ({
-			cart: prevState.cart.map((item) => (item._id === productId ? { ...item, quantity } : item)),
+			cart: prevState.cart.map((item) => (item.id === productId ? { ...item, quantity } : item)),
 		}));
 		get().calculateTotals();
 	},
