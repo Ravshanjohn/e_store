@@ -13,9 +13,21 @@ export const getAllProducts = async (req, res) => {
 	}
 };
 
+export const getAllActiveProducts = async (req, res) => {
+	try {
+		const {data, error} = await database.from('products').select('*').eq('is_active', true);
+		if(error) throw error;
+
+		return res.status(200).json({data}	);
+	} catch (error) {
+		console.log("Error in getAllActiveProducts controller", error.message);
+		return res.status(500).json({ message: "Server error", error: error.message });
+	}
+}
+
 export const getFeaturedProducts = async (req, res) => {
 	try {
-		const {data, error} = await database.from('products').select('id, name, sale_price, is_featured, image_url, category').eq('is_featured', true);
+		const {data, error} = await database.from('products').select('id, name, sale_price, is_featured, image_url, category').eq('is_featured', true).eq('is_active', true);
 
 		if(error) throw error;
 
@@ -28,8 +40,8 @@ export const getFeaturedProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, original_price, sale_price, is_featured, image_url, category, stock, description } = req.body;
-		const required = {name, original_price, sale_price, is_featured, image_url, category, stock, description};
+		const { name, original_price, sale_price, image_url, category, stock, description } = req.body;
+		const required = {name, original_price, sale_price, image_url, category, stock, description};
 
 		for(let[key, value] of Object.entries(required)){
 			if(!value) return res.status(400).json({message: `${key} is required`});
@@ -48,7 +60,7 @@ export const createProduct = async (req, res) => {
 			return res.status(400).json({ message: "Product exists" });
 		}
 
-		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, is_featured, image_url, category, stock, description}]).select('*');
+		const { data, error } = await database.from('products').insert([{name, original_price, sale_price, image_url, category, stock, description}]).select('*');
 
 		if(error) throw error;
 
@@ -75,7 +87,7 @@ export const deleteProduct = async (req, res) => {
       return res.status(404).json({ message: "Product does not exist" });
     }
 
-		const {data, error} = await database.from('products').delete().eq('id', id).select('*');
+		const {data, error} = await database.from('products').update({ is_active: false }).eq('id', id).select('*');
 
 		if(error) throw error;
 
@@ -94,7 +106,12 @@ export const deleteProduct = async (req, res) => {
 export const getProductsByCategory = async (req, res) => {
 	const { category } = req.params;
 	try {
-		const {data, error} = await database.from('products').select('id, name, sale_price, image_url, is_featured, category, stock').eq('category', category)
+		const {data, error} = await database.from('products')
+			.select('id, name, sale_price, image_url, is_featured, category, stock')
+			.eq('category', category)
+			.eq('is_active', true);
+
+		if(error) throw error;
 		return res.status(200).json({data});
 	} catch (error) {
 		console.log("Error in getProductsByCategory controller", error.message);
@@ -106,7 +123,7 @@ export const toggleFeaturedProduct = async (req, res) => {
 	try {
 		const { id } = req.params;
 
-		const { data: existingProduct, error:fetchError } = await database.from('products').select('id, is_featured').eq('id', id).single();
+		const { data: existingProduct, error:fetchError } = await database.from('products').select('id, is_featured').eq('id', id).eq('is_active', true).single();
 
 		if( fetchError ) return res.status(404).json({message: "Product not found"});
 
@@ -157,6 +174,7 @@ export const productReview = async (req, res) => {
       .from('products')
       .select('id')
       .eq('id', parsedProductId)
+			.eq('is_active', true)
       .single();
 
     if (productError || !product) {
