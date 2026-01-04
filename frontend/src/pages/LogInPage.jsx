@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { LogIn, Mail, Lock, ArrowRight, Loader } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
-import Warning from "../components/Warning";
 
 const LoginPage = () => {
 	const [email, setEmail] = useState("");
@@ -11,15 +10,17 @@ const LoginPage = () => {
 
 	const { login, loading } = useUserStore();
 
-	const handleSubmit = (e) => {
+	const handleSubmit = async (e) => {
 		e.preventDefault();
-		console.log(email, password);
-		login(email, password);
+		try {
+			await login(email, password);
+		} catch (error) {
+			console.error("Login error:", error);
+		}
 	};
 
 	return (
 		<>
-			<Warning />
 			<div className='flex flex-col justify-center py-12 sm:px-6 lg:px-8'>
 				<motion.div
 				className='sm:mx-auto sm:w-full sm:max-w-md'
@@ -103,8 +104,16 @@ const LoginPage = () => {
 							)}
 						</button>
 					</form>
-
-					<p className='mt-8 text-center text-sm text-gray-400'>
+					
+					<div className='mt-6 flex flex-col space-y-1 items-center justify-center'>
+						<p className="text-sm text-gray-400">
+							Forgot your password?{" "}
+						</p>
+						<Link to='/forgot-password' className='font-medium text-emerald-400 hover:text-emerald-300 hover:underline'>
+							Reset Password
+						</Link>
+					</div>
+					<p className='mt-5 text-center text-sm text-gray-400'>
 						Not a member?{" "}
 						<Link to='/signup' className='font-medium text-emerald-400 hover:text-emerald-300'>
 							Sign up now <ArrowRight className='inline h-4 w-4' />

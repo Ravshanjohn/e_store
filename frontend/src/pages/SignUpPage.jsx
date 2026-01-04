@@ -3,34 +3,74 @@ import { Link } from "react-router-dom";
 import { UserPlus, Mail, Lock, User, ArrowRight, Loader } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUserStore } from "../stores/useUserStore";
-import Warning from "../components/Warning";
+import PasswordStrength, {getStrengthText} from "../components/PasswordStrength";
+import toast from "react-hot-toast";
 
 const SignUpPage = () => {
 	const [formData, setFormData] = useState({
-		name: "",
+		firstName: "",
+		lastName: "",
 		email: "",
 		password: "",
 		confirmPassword: "",
 	});
-
 	const { signup, loading } = useUserStore();
 
-	const handleSubmit = (e) => {
+	//Password Strength
+	const getStrength = (pass) => {
+    let strength = 0;
+    if (pass.length >= 6) strength++;
+    if (pass.match(/[a-z]/) && pass.match(/[A-Z]/)) strength++;
+    if (pass.match(/\d/)) strength++;
+    if (pass.match(/[^a-zA-Z\d]/)) strength++;
+    return strength;
+  };
+  const strength = getStrength(formData.password);
+  const strengthText = getStrengthText(strength);
+
+	const validateForm = () => {
+    if (!formData.firstName.trim()) return toast.error("First name is required");
+    if (!formData.lastName.trim()) return toast.error("Last name is required");
+    if (!formData.email.trim()) return toast.error("Email is required");
+    if (!/\S+@\S+\.\S+/.test(formData.email)) return toast.error("Invalid email format");
+    if (!formData.password) return toast.error("Password is required");
+    if (formData.password.length < 6) return toast.error("Password must be at least 6 characters");
+
+    return true;
+  };
+
+	//Check form submission
+	const handleSubmit = async (e) => {
 		e.preventDefault();
-		signup(formData);
+		const success = validateForm();
+		if (success !== true) return;
+		if (strengthText !== "Good" && strengthText !== "Strong") {
+			return toast.error("Password is not strong enough");
+		}
+		try {
+			await signup({
+				first_name: formData.firstName,
+				last_name: formData.lastName,
+				email: formData.email,
+				password: formData.password,
+				confirmPassword: formData.confirmPassword,
+			});
+		} catch (error) {
+			// Error is already handled by toast in the store
+			console.error("Signup error:", error);
+		}
 	};
 
 	return (
 		<>
-			<Warning />
-			<div className='flex flex-col justify-center py-12 sm:px-6 lg:px-8'>
+			<div className='flex flex-col justify-center sm:px-6 lg:px-8 mb-5'>
 				<motion.div
 				className='sm:mx-auto sm:w-full sm:max-w-md'
 				initial={{ opacity: 0, y: -20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.8 }}
 			>
-				<h2 className='mt-6 text-center text-3xl font-extrabold text-emerald-400'>Create your account</h2>
+				<h2 className='text-center text-3xl font-extrabold text-emerald-400'>Create your account</h2>
 			</motion.div>
 
 			<motion.div
@@ -40,10 +80,10 @@ const SignUpPage = () => {
 				transition={{ duration: 0.8, delay: 0.2 }}
 			>
 				<div className='bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10'>
-					<form onSubmit={handleSubmit} className='space-y-6'>
+					<form onSubmit={handleSubmit} className='space-y-4'>
 						<div>
-							<label htmlFor='name' className='block text-sm font-medium text-gray-300'>
-								Full name
+							<label htmlFor='firstName' className='block text-sm font-medium text-gray-300'>
+								First Name
 							</label>
 							<div className='mt-1 relative rounded-md shadow-sm'>
 								<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
@@ -53,11 +93,32 @@ const SignUpPage = () => {
 									id='name'
 									type='text'
 									required
-									value={formData.name}
-									onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+									value={formData.firstName}
+									onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
 									className='block w-full px-3 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-md shadow-sm
 									 placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm'
-									placeholder='John Doe'
+									placeholder='John'
+								/>
+							</div>
+						</div>
+
+						<div>
+							<label htmlFor='lastName' className='block text-sm font-medium text-gray-300'>
+								Last Name
+							</label>
+							<div className='mt-1 relative rounded-md shadow-sm'>
+								<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+									<User className='h-5 w-5 text-gray-400' aria-hidden='true' />
+								</div>
+								<input
+									id='lastName'
+									type='text'
+									required
+									value={formData.lastName}
+									onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+									className='block w-full px-3 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-md shadow-sm
+									 placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm'
+									placeholder='Doe'
 								/>
 							</div>
 						</div>
@@ -125,6 +186,7 @@ const SignUpPage = () => {
 									placeholder='••••••••'
 								/>
 							</div>
+							<PasswordStrength password={formData.password} />
 						</div>
 
 						<button
@@ -149,12 +211,21 @@ const SignUpPage = () => {
 						</button>
 					</form>
 
-					<p className='mt-8 text-center text-sm text-gray-400'>
+					<p className='mt-5 text-center text-sm text-gray-400'>
 						Already have an account?{" "}
 						<Link to='/login' className='font-medium text-emerald-400 hover:text-emerald-300'>
 							Login here <ArrowRight className='inline h-4 w-4' />
 						</Link>
 					</p>
+					
+					<div className="mt-3 flex flex-col text-center justify-center text-sm text-gray-400">
+						<p>
+							Did not receive a verification email?{" "}
+						</p>
+						<Link to='/resend-verification' className='font-medium text-emerald-400 hover:text-emerald-300'>
+							Resend verification email 
+						</Link>
+					</div>
 				</div>
 			</motion.div>
 			</div>

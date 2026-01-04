@@ -7,7 +7,7 @@ export const useUserStore = create((set, get) => ({
 	loading: false,
 	checkingAuth: true,
 
-	signup: async ({ name, email, password, confirmPassword }) => {
+	signup: async ({ first_name, last_name, email, password, confirmPassword }) => {
 		set({ loading: true });
 
 		if (password !== confirmPassword) {
@@ -16,23 +16,29 @@ export const useUserStore = create((set, get) => ({
 		}
 
 		try {
-			const res = await axios.post("/auth/signup", { name, email, password });
-			set({ user: res.data, loading: false });
+			first_name = first_name.trim();
+			last_name = last_name.trim();
+			const res = await axios.post("/auth/signup", { email, password, first_name, last_name});
+			set({ loading: false });
+
+			toast.success(res.data.message);
 		} catch (error) {
 			set({ loading: false });
-			toast.error(error.response.data.message || "An error occurred");
+			toast.error(error.response?.data?.message || "An error occurred");
 		}
 	},
+
 	login: async (email, password) => {
 		set({ loading: true });
 
 		try {
 			const res = await axios.post("/auth/login", { email, password });
 
-			set({ user: res.data, loading: false });
+			set({ user: res.data.user, loading: false });
+			toast.success(res.data.message);
 		} catch (error) {
 			set({ loading: false });
-			toast.error(error.response.data.message || "An error occurred");
+			toast.error(error.response?.data?.message || "An error occurred");
 		}
 	},
 
@@ -48,8 +54,8 @@ export const useUserStore = create((set, get) => ({
 	checkAuth: async () => {
 		set({ checkingAuth: true });
 		try {
-			const response = await axios.get("/auth/profile");
-			set({ user: response.data, checkingAuth: false });
+			const response = await axios.get("/auth/auth-check");
+			set({ user: response.data.user, checkingAuth: false });
 		} catch (error) {
 			console.log(error.message);
 			set({ checkingAuth: false, user: null });
@@ -70,6 +76,57 @@ export const useUserStore = create((set, get) => ({
 			throw error;
 		}
 	},
+
+	verifyEmail: async (token) => {
+		set({ loading: true });
+		try {
+			const res = await axios.post(`/auth/email-verification/${token}`);
+			set({ loading: false });
+			toast.success(res.data.message);
+			return true;
+		} catch (error) {
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+			return false;
+		}
+	},
+
+	sendVerificationEmail: async (email) => {
+		set({ loading: true });
+		try {
+			const res = await axios.post("/auth/verify_email", { email });
+			set({ loading: false });
+			toast.success(res.data.message);
+		} catch (error) {
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+		}
+	},
+
+	forgetPassword: async (email) => {
+		set({ loading: true });
+		try {
+			const res = await axios.post("/auth/forgot_password", { email });
+			set({ loading: false });
+			toast.success(res.data.message);
+		} catch (error) {
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+		}
+	},
+
+	
+	resetPassword: async (token, newPassword) => {
+		set({ loading: true });
+		try {
+			const res = await axios.post(`/auth/reset-password/${token}`, { newPassword });
+			set({ loading: false });
+			toast.success(res.data.message);
+		} catch (error) {
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+		}
+	},
 }));
 
 // TODO: Implement the axios interceptors for refreshing access token
@@ -81,7 +138,12 @@ axios.interceptors.response.use(
 	(response) => response,
 	async (error) => {
 		const originalRequest = error.config;
-		if (error.response?.status === 401 && !originalRequest._retry) {
+		if (
+			error.response?.status === 401 &&
+			!originalRequest._retry &&
+			!originalRequest.url.includes("/auth/login") &&
+			!originalRequest.url.includes("/auth/signup")
+		) {
 			originalRequest._retry = true;
 
 			try {

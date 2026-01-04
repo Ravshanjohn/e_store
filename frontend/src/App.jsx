@@ -5,6 +5,10 @@ import SignUpPage from "./pages/SignUpPage";
 import LogInPage from "./pages/LogInPage";
 import AdminPage from "./pages/AdminPage";
 import CategoryPage from "./pages/CategoryPage";
+import ResendVerificationEmail from "./pages/ResendVerificationEmailPage.jsx";
+import VerifyEmailPage from "./pages/VerifyEmailPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -56,6 +60,10 @@ function App() {
 						path='/purchase-success'
 						element={user ? <PurchaseSuccessPage /> : <Navigate to='/login' />}
 					/>
+					<Route path='/resend-verification' element={!user ?<ResendVerificationEmail /> : <Navigate to='/' />} />
+					<Route path='/email-verification/:token' element={!user ? <VerifyEmailPage /> : <Navigate to='/' />} />
+					<Route path='/forgot-password' element={!user ? <ForgotPasswordPage /> : <Navigate to='/' />} />
+					<Route path='/reset-password/:token' element={!user ? <ResetPasswordPage /> : <Navigate to='/' />} />
 					<Route path='/purchase-cancel' element={user ? <PurchaseCancelPage /> : <Navigate to='/login' />} />
 				</Routes>
 			</div>
