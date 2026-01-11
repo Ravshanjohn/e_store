@@ -1,94 +1,120 @@
-import { useEffect, useState } from "react";
-import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCartStore } from "../stores/useCartStore";
+import { useEffect, useState, useRef } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import ProductCard from "./ProductCard";
 
 const FeaturedProducts = ({ featuredProducts }) => {
-	const [currentIndex, setCurrentIndex] = useState(0);
-	const [itemsPerPage, setItemsPerPage] = useState(4);
+	const [isDragging, setIsDragging] = useState(false);
+	const [startX, setStartX] = useState(0);
+	const [scrollLeft, setScrollLeft] = useState(0);
+	const [canScrollLeft, setCanScrollLeft] = useState(false);
+	const [canScrollRight, setCanScrollRight] = useState(true);
 
-	const { addToCart } = useCartStore();
+	const scrollContainerRef = useRef(null);
 
 	useEffect(() => {
-		const handleResize = () => {
-			if (window.innerWidth < 640) setItemsPerPage(1);
-			else if (window.innerWidth < 1024) setItemsPerPage(2);
-			else if (window.innerWidth < 1280) setItemsPerPage(3);
-			else setItemsPerPage(4);
-		};
+		const container = scrollContainerRef.current;
+		if (container) {
+			const handleScroll = () => {
+				const { scrollLeft, scrollWidth, clientWidth } = container;
+				const isAtStart = scrollLeft <= 2;
+				const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 2;
+				
+				setCanScrollLeft(!isAtStart);
+				setCanScrollRight(!isAtEnd && scrollWidth > clientWidth);
+			};
 
-		handleResize();
-		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
-	}, []);
+			container.addEventListener("scroll", handleScroll);
+			window.addEventListener("resize", handleScroll);
+			
+			
+			handleScroll();
+			const timer = setTimeout(handleScroll, 100);
+			
+			return () => {
+				container.removeEventListener("scroll", handleScroll);
+				window.removeEventListener("resize", handleScroll);
+				clearTimeout(timer);
+			};
+		}
+	}, [featuredProducts]);
 
-	const nextSlide = () => {
-		setCurrentIndex((prevIndex) => prevIndex + itemsPerPage);
+	const handleMouseDown = (e) => {
+		setIsDragging(true);
+		setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
+		setScrollLeft(scrollContainerRef.current.scrollLeft);
 	};
 
-	const prevSlide = () => {
-		setCurrentIndex((prevIndex) => prevIndex - itemsPerPage);
+	const handleMouseMove = (e) => {
+		if (!isDragging) return;
+		e.preventDefault();
+		const x = e.pageX - scrollContainerRef.current.offsetLeft;
+		const walk = (x - startX) * 2;
+		scrollContainerRef.current.scrollLeft = scrollLeft - walk;
 	};
 
-	const isStartDisabled = currentIndex === 0;
-	const isEndDisabled = currentIndex >= featuredProducts.length - itemsPerPage;
+	const handleMouseUp = () => {
+		setIsDragging(false);
+	};
+
+	const handleMouseLeave = () => {
+		setIsDragging(false);
+	};
+
+	const scroll = (direction) => {
+		const container = scrollContainerRef.current;
+		if (container) {
+			const scrollAmount = direction === "left" ? -container.clientWidth : container.clientWidth;
+			container.scrollBy({ left: scrollAmount, behavior: "smooth" });
+		}
+	};
 
 	return (
 		<div className='py-12'>
 			<div className='container mx-auto px-4'>
-				<h2 className='text-center text-5xl sm:text-6xl font-bold text-emerald-400 mb-4'>Featured</h2>
+				<h2 className='text-center text-5xl sm:text-6xl font-bold text-emerald-400 mb-8'>Featured</h2>
 				<div className='relative'>
-					<div className='overflow-hidden'>
-						<div
-							className='flex transition-transform duration-300 ease-in-out'
-							style={{ transform: `translateX(-${currentIndex * (100 / itemsPerPage)}%)` }}
-						>
+					<div 
+						ref={scrollContainerRef}
+						className='overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing'
+						onMouseDown={handleMouseDown}
+						onMouseMove={handleMouseMove}
+						onMouseUp={handleMouseUp}
+						onMouseLeave={handleMouseLeave}
+						style={{ 
+							scrollBehavior: isDragging ? 'auto' : 'smooth',
+							userSelect: 'none'
+						}}
+					>
+						<div className='flex gap-6 pb-4 items-stretch'>
 							{featuredProducts?.map((product) => (
-								<div key={product.id} className='w-full sm:w-1/2 lg:w-1/3 xl:w-1/4 flex-shrink-0 px-2'>
-									<div className='bg-white bg-opacity-10 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden h-full transition-all duration-300 hover:shadow-xl border border-emerald-500/30'>
-										<div className='overflow-hidden'>
-											<img
-												src={product.image_url}
-												alt={product.name}
-												className='w-full h-48 object-cover transition-transform duration-300 ease-in-out hover:scale-105'
-											/>
-										</div>
-										<div className='p-4'>
-											<h3 className='text-lg font-semibold mb-2 text-white'>{product.name}</h3>
-											<p className='text-emerald-300 font-medium mb-4'>
-												${product.sale_price.toFixed(2)}
-											</p>
-											<button
-												onClick={() => addToCart(product)}
-												className='w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded transition-colors duration-300 
-												flex items-center justify-center'
-											>
-												<ShoppingCart className='w-5 h-5 mr-2' />
-												Add to Cart
-											</button>
-										</div>
-									</div>
+								<div key={product.id} className='w-full sm:w-1/2 lg:w-1/3 xl:w-1/4 flex-shrink-0 flex'>
+									<ProductCard key={product.id} product={product} />
 								</div>
 							))}
 						</div>
 					</div>
 					<button
-						onClick={prevSlide}
-						disabled={isStartDisabled}
-						className={`absolute top-1/2 -left-4 transform -translate-y-1/2 p-2 rounded-full transition-colors duration-300 ${
-							isStartDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-500"
+						onClick={() => scroll("left")}
+						disabled={!canScrollLeft}
+						className={`absolute top-1/2 -left-4 transform -translate-y-1/2 p-3 rounded-full transition-all duration-300 z-10 shadow-lg ${
+							!canScrollLeft 
+								? "bg-gray-600 cursor-not-allowed opacity-50" 
+								: "bg-emerald-600 hover:bg-emerald-500 hover:scale-110"
 						}`}
 					>
-						<ChevronLeft className='w-6 h-6' />
+						<ChevronLeft className='w-6 h-6 text-white' />
 					</button>
 
 					<button
-						onClick={nextSlide}
-						disabled={isEndDisabled}
-						className={`absolute top-1/2 -right-4 transform -translate-y-1/2 p-2 rounded-full transition-colors duration-300 ${
-							isEndDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-500"
+						onClick={() => scroll("right")}
+						disabled={!canScrollRight}
+						className={`absolute top-1/2 -right-4 transform -translate-y-1/2 p-3 rounded-full transition-all duration-300 z-10 shadow-lg ${
+							!canScrollRight 
+								? "bg-gray-600 cursor-not-allowed opacity-50" 
+								: "bg-emerald-600 hover:bg-emerald-500 hover:scale-110"
 						}`}
 					>
-						<ChevronRight className='w-6 h-6' />
+						<ChevronRight className='w-6 h-6 text-white' />
 					</button>
 				</div>
 			</div>

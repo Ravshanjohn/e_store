@@ -7,10 +7,9 @@ const CartItem = ({ item }) => {
   const holdInterval = useRef(null);
 
   const handleMouseDown = (id, type) => {
-    // Trigger once immediately
     updateQuantity(id, type);
 
-    // Start repeating every 150ms while held
+    
     holdInterval.current = setInterval(() => {
       updateQuantity(id, type);
     }, 150);

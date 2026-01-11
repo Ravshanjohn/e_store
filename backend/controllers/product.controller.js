@@ -27,7 +27,7 @@ export const getAllActiveProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
 	try {
-		const {data, error} = await database.from('products').select('id, name, sale_price, is_featured, image_url, category').eq('is_featured', true).eq('is_active', true);
+		const {data, error} = await database.from('products').select('id, name, sale_price, is_featured, image_url, category, stock').eq('is_featured', true).eq('is_active', true);
 
 		if(error) throw error;
 

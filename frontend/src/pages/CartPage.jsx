@@ -3,17 +3,20 @@ import { useCartStore } from "../stores/useCartStore";
 import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import CartItem from "../components/CartItem";
-import PeopleAlsoBought from "../components/PeopleAlsoBought";
 import OrderSummary from "../components/OrderSummary";
 import GiftCouponCard from "../components/GiftCouponCard";
 import { useEffect } from "react";
+import FeaturedProducts from "../components/FeaturedProducts";
+import { useProductStore } from "../stores/useProductStore";
 
 const CartPage = () => {
 	const { cart, getCartItems } = useCartStore();
+	const {products, fetchFeaturedProducts} = useProductStore();
 	
 	useEffect(() => {
 		getCartItems();
-	}, [getCartItems]);
+		fetchFeaturedProducts(products);
+	}, [getCartItems, fetchFeaturedProducts]);
 
 	return (
 		<div className='py-8 md:py-16'>
@@ -34,7 +37,7 @@ const CartPage = () => {
 								))}
 							</div>
 						)}
-						{cart.length > 0 && <PeopleAlsoBought />}
+						{cart.length > 0 && <FeaturedProducts featuredProducts={products} />}
 					</motion.div>
 
 					{cart.length > 0 && (

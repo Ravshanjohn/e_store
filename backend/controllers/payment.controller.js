@@ -215,7 +215,38 @@ export const checkoutSuccess = async (req, res) => {
       .single();
     if (paymentUpdateError) throw paymentUpdateError;
 
-    //  delete old cart rows
+    //Update product stock levels
+    const { data: orderItems, error: orderItemsError } = await database
+      .from("order_items")
+      .select("product_id, quantity")
+      .eq("order_id", orderId);
+    if (orderItemsError) throw orderItemsError;
+
+    for (const item of orderItems) {
+      // Fetch the current stock
+      const { data: product, error: productError } = await database
+        .from("products")
+        .select("stock")
+        .eq("id", item.product_id)
+        .single();
+      if (productError) throw productError;
+
+      if (product.stock <= item.quantity) {
+        throw new Error(`Not enough stock for product ${item.product_id}`);
+      }
+
+      // Update stock
+      const { error: stockUpdateError } = await database
+        .from("products")
+        .update({
+          stock: product.stock - item.quantity
+        })
+        .eq("id", item.product_id);
+
+      if (stockUpdateError) throw stockUpdateError;
+    };
+
+    //Clear old cart rows
     await database
       .from("cart_items")
       .delete()

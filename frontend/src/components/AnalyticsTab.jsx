@@ -18,9 +18,18 @@ const AnalyticsTab = () => {
 	useEffect(() => {
 		const fetchAnalyticsData = async () => {
 			try {
-				const response = await axios.get("/analytics");
-				setAnalyticsData(response.data.analyticsData);
-				setDailySalesData(response.data.dailySalesData);
+				const infoSales = await axios.get("/analytics/revenue-by-day");
+				// Transform data to ensure proper format for the chart
+				const formattedData = infoSales.data.map(item => ({
+					day: item.day || item.date || item.order_date,
+					revenue: Number(item.revenue) || 0,
+					sales: Number(item.sales) || Number(item.total_sales) || 0
+				}));
+				setDailySalesData(formattedData);
+				console.log("Daily Sales Data:", formattedData);
+				
+				const infoAnalytics = await axios.get("/analytics");
+				setAnalyticsData(infoAnalytics.data.analyticsData);
 			} catch (error) {
 				console.error("Error fetching analytics data:", error);
 			} finally {
@@ -88,9 +97,8 @@ const AnalyticsTab = () => {
 								</linearGradient>
 							</defs>
 							<CartesianGrid strokeDasharray='3 3' stroke='#374151' vertical={false} />
-							<XAxis dataKey='name' stroke='#9CA3AF' style={{ fontSize: '12px' }} />
-							<YAxis yAxisId='left' stroke='#9CA3AF' style={{ fontSize: '12px' }} />
-							<YAxis yAxisId='right' orientation='right' stroke='#9CA3AF' style={{ fontSize: '12px' }} />
+							<XAxis dataKey='day' stroke='#9CA3AF' style={{ fontSize: '12px' }} />
+							<YAxis yAxisId='left' stroke='#10B981' style={{ fontSize: '12px' }} />
 							<Tooltip 
 								contentStyle={{ 
 									backgroundColor: '#111827', 
@@ -108,29 +116,17 @@ const AnalyticsTab = () => {
 							<Line
 								yAxisId='left'
 								type='monotone'
-								dataKey='sales'
+								dataKey='revenue'
 								stroke='#10B981'
 								strokeWidth={3}
 								dot={{ fill: '#10B981', r: 4 }}
-								activeDot={{ r: 6 }}
-								name='Sales'
-								fillOpacity={1}
-								fill='url(#colorSales)'
-								isAnimationActive={true}
-							/>
-							<Line
-								yAxisId='right'
-								type='monotone'
-								dataKey='revenue'
-								stroke='#3B82F6'
-								strokeWidth={3}
-								dot={{ fill: '#3B82F6', r: 4 }}
 								activeDot={{ r: 6 }}
 								name='Revenue'
 								fillOpacity={1}
 								fill='url(#colorRevenue)'
 								isAnimationActive={true}
 							/>
+							
 						</LineChart>
 					</ResponsiveContainer>
 				</div>
