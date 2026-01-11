@@ -8,10 +8,32 @@ export const getCartProducts = async (req, res) => {
 		const {data, error} = await database.from('cart_items').select('product_id, quantity').eq("user_id", userId);
 		if(error) return res.status(400).json({ message: "Error fetching data" });
 
-		return res.status(200).json(data)
+		// Extract product IDs from cart items
+		const productIds = data.map(item => item.product_id);
+
+		const {data: products, error: ProductsError} = await database.from('products')
+			.select('id, name, sale_price, image_url, description')
+			.in('id', productIds);
+		if(ProductsError) return res.status(400).json({ message: "Error fetching products" });
+
+		// Map products by their ID for easy lookup
+		const productsMap = {};
+		products.forEach(product => {
+			productsMap[product.id] = product;
+		});
+
+		
+		// Combine cart items with product details
+		const result = data.map(item => ({
+			...item,
+			...productsMap[item.product_id]
+		}));
+		const total = result.map(item => item.sale_price * item.quantity).reduce((a, b) => a + b, 0);
+
+		return res.status(200).json({result: result, total: total});
 	} catch (error) {
 		console.log("Error in getCartProducts controller", error.message);
-		res.status(500).json({ message: "Server error", error: error.message });
+		return res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
 

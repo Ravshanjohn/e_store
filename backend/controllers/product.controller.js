@@ -49,14 +49,14 @@ export const createProduct = async (req, res) => {
 		if(sale_price <= original_price) return res.status(400).json({message: "Please check the sale and original price"})
 		
 		
-		const { data: existingProducts, err } = await database
+		const { data: existingProducts, error: existingProductsError } = await database
 			.from('products')
 			.select('name')
 			.eq('name', name);
 
-		if (err) throw error;
+		if (existingProductsError) throw existingProductsError;
 
-		if (existingProducts.length > 0) {
+		if (existingProducts && existingProducts.length > 0) {
 			return res.status(400).json({ message: "Product exists" });
 		}
 

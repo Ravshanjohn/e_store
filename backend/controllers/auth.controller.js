@@ -302,10 +302,15 @@ export const logout = async (req, res) => {
 		if(token){
 			await database.from('tokens').update({ revoked: true }).eq('token', token);
 		};
-		await res.cookie("jwt", '', { httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: "strict",
+
+		const isProduction = process.env.NODE_ENV === 'production';
+
+		res.cookie("jwt", '', { 
+			httpOnly: true,
+			secure: isProduction,
+			sameSite: isProduction ? "strict" : "lax",
 			maxAge: 0,
+			path: "/",
 		});
 		
 		return res.status(200).json({ message: "Logged out successfully" });

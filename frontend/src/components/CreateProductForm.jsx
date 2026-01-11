@@ -20,9 +20,23 @@ const CreateProductForm = () => {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		const payload = {
+			...newProduct,
+			original_price: parseFloat(newProduct.original_price),
+			sale_price: parseFloat(newProduct.sale_price),
+			stock: Number(newProduct.stock),
+		};
 		try {
-			await createProduct(newProduct);
-			setNewProduct({ name: "", description: "", original_price: "", sale_price: "", category: "", image_url: "" });
+			await createProduct(payload);
+			setNewProduct({
+				name: "",
+				description: "",
+				original_price: "",
+				sale_price: "",
+				category: "",
+				image_url: "",
+				stock: "",
+			});
 		} catch {
 			console.log("error creating a product");
 		}
@@ -162,16 +176,22 @@ const CreateProductForm = () => {
 					</select>
 				</div>
 
-				<div className='mt-1 flex items-center'>
-					<input type='file' id='image' className='sr-only' accept='image/*' onChange={handleImageChange} />
-					<label
-						htmlFor='image'
-						className='cursor-pointer bg-gray-700 py-2 px-3 border border-gray-600 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500'
-					>
-						<Upload className='h-5 w-5 inline-block mr-2' />
-						Upload Image
+				<div>
+					<label htmlFor='image_url' className='block text-sm font-medium text-gray-300'>
+						Image URL
 					</label>
-					{newProduct.image && <span className='ml-3 text-sm text-gray-400'>Image uploaded </span>}
+					<input
+						type='text'
+						id='image_url'
+						name='image_url'
+						value={newProduct.image_url}
+						onChange={(e) => setNewProduct({ ...newProduct, image_url	: e.target.value })}
+						step='1'
+						className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
+						py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
+						 focus:border-emerald-500'
+						required
+					/>
 				</div>
 
 				<button

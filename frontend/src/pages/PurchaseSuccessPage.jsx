@@ -21,7 +21,7 @@ const PurchaseSuccessPage = () => {
 
 			try {
 				console.log('Calling checkout-success with sessionId:', sessionId);
-				const response = await axios.post("/payments/checkout-success", {
+				const response = await axios.post("/payments/webhook/stripe", {
 					sessionId,
 				});
 				console.log('Checkout success response:', response.data);

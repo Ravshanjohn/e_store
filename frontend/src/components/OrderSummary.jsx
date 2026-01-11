@@ -5,9 +5,8 @@ import { MoveRight } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import axios from "../lib/axios";
 
-const stripePromise = loadStripe(
-	"pk_test_51KZYccCoOZF2UhtOwdXQl3vcizup20zqKqT9hVUIsVzsdBrhqbUI2fE0ZdEVLdZfeHjeyFXtqaNsyCJCmZWnjNZa00PzMAjlcL"
-);
+
+// const stripePromise = loadStripe(process.env.STRIPE_SECRET_KEY);
 
 const OrderSummary = () => {
 	const { total, subtotal, coupon, isCouponApplied, cart } = useCartStore();
@@ -19,20 +18,17 @@ const OrderSummary = () => {
 
 	const handlePayment = async () => {
 		try {
-			console.log('Cart:', cart);
-			console.log('Coupon:', coupon);
 			
 			const res = await axios.post("/payments/create-checkout-session", {
 				products: cart,
 				couponCode: coupon && isCouponApplied ? coupon.code : null,
 			});
 
-			console.log('Session response:', res.data);
 			
 			if (res.data.url) {
 				window.location.href = res.data.url;
 			} else {
-				console.error("No checkout URL received");
+				throw new Error("No checkout URL returned");
 			}
 		} catch (error) {
 			console.error("Payment error:", error);
@@ -66,7 +62,7 @@ const OrderSummary = () => {
 					{coupon && isCouponApplied && (
 						<dl className='flex items-center justify-between gap-4'>
 							<dt className='text-base font-normal text-gray-300'>Coupon ({coupon.code})</dt>
-							<dd className='text-base font-medium text-emerald-400'>-{coupon.discountPercentage}%</dd>
+							<dd className='text-base font-medium text-emerald-400'>-{coupon.discount_value}%</dd>
 						</dl>
 					)}
 					<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>

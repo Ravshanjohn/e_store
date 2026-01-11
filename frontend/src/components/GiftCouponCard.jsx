@@ -17,7 +17,7 @@ const GiftCouponCard = () => {
 			setUserInputCode(coupon.code);
 			applyCoupon(coupon.code);
 		}
-	}, [coupon]);
+	}, [coupon, isCouponApplied, applyCoupon, removeCoupon, userInputCode]);
 
 	const handleApplyCoupon = () => {
 		if (!userInputCode) return;
@@ -47,7 +47,7 @@ const GiftCouponCard = () => {
 						className='block w-full rounded-lg border border-gray-600 bg-gray-700 
             p-2.5 text-sm text-white placeholder-gray-400 focus:border-emerald-500 
             focus:ring-emerald-500'
-						placeholder='Enter your code here or get free coupon (GIFTLVXBXH)'
+						placeholder='Enter your code here or get free coupon (10OFF)'
 						value={userInputCode}
 						onChange={(e) => setUserInputCode(e.target.value)}
 						required
@@ -69,7 +69,7 @@ const GiftCouponCard = () => {
 					<h3 className='text-lg font-medium text-gray-300'>Applied Coupon</h3>
 
 					<p className='mt-2 text-sm text-gray-400'>
-						{coupon.code} - {coupon.discountPercentage}% off
+						{coupon.code} - {coupon.discount_value}% off
 					</p>
 
 					<motion.button

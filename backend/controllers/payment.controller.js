@@ -9,7 +9,7 @@ export const createCheckoutSession = async (req, res) => {
 
   try {
     if (!Array.isArray(products) || products.length === 0) {
-      return res.status(400).json({ error: "Invalid or empty products array" });
+      return res.status(400).json({ error: "Invalid products" });
     }
 
 		//Product ids from the request
@@ -23,47 +23,65 @@ export const createCheckoutSession = async (req, res) => {
     if (dbProductsError) throw dbProductsError;
 
 		// Map db products by id for easy lookup
-    const dbProductMap = {};
-    dbProducts.forEach(p => dbProductMap[p.id] = p);
+    const productMap = Object.fromEntries(
+      dbProducts.map(p => [p.id, p])
+    );
 
+    // Validate products and quantities
+    for (const item of products){
+      if(!productMap[item.product_id]){
+        return res.status(400).json({ message: `Product not found: ${item.product_id}` });
+      }
+
+      if(item.quantity <= 0){
+        return res.status(400).json({ message: `Invalid quantity for product: ${item.product_id}` });
+      }
+    };
+
+    let discount = 0;
+    let coupon = null;
     let totalAmount = 0;
 
+    if(couponCode){
+      const {data} = await database
+        .from('coupons')
+        .select("discount_value, discount_type")
+        .eq("code", couponCode)
+        .eq("active", true)
+        .maybeSingle();
+      
+      if(!data) return res.status(400).json({ message: "Invalid coupon" }); 
+
+      coupon = data;
+    };
 		// Prepare line items for Stripe
     const lineItems = products.map(item => {
-      const dbProduct = dbProductMap[item.product_id];
-      const unit = Math.round(dbProduct.sale_price * 100);
+      const product = productMap[item.product_id];
+      const unitAmount = Math.round(product.sale_price * 100);
 
-      totalAmount += unit * (item.quantity || 1);
+      totalAmount += unitAmount * item.quantity;
 
       return {
         price_data: {
           currency: "usd",
           product_data: {
-            name: dbProduct.name,
-            images: [dbProduct.image_url],
+            name: product.name,
+            images: [product.image_url],
           },
-          unit_amount: unit
+          unit_amount: unitAmount
         },
-        quantity: item.quantity || 1
+        quantity: item.quantity
       };
     });
 
-		// Apply coupon if provided
-    if (couponCode) {
-      const { data: coupon } = await database
-        .from("coupons")
-        .select("discount_value, discount_type")
-        .eq("code", couponCode)
-        .eq("active", true)
-        .maybeSingle();
-
-      if (!coupon) return res.status(400).json({ message: "Coupon not found" });
-
-      if (coupon.discount_type === "percentage") {
-        totalAmount -= Math.round(totalAmount * coupon.discount_value / 100);
+    // Apply coupon discount if available
+    if(coupon){
+      if(coupon.discount_type === "percentage"){
+        discount = Math.round(totalAmount * (coupon.discount_value / 100));
       } else {
-        totalAmount -= Math.round(coupon.discount_value * 100);
+        discount = Math.round(coupon.discount_value * 100);
       }
+      totalAmount -= Math.max(discount, 0);
     }
 
     // find or create pending order
@@ -73,9 +91,10 @@ export const createCheckoutSession = async (req, res) => {
       .eq("user_id", userId)
       .eq("status", "pending")
       .maybeSingle();
+
 		// create new order if not found
     if (!order) {
-      const {data: result, error: insertError} = await database
+      const {data, error} = await database
         .from("orders")
         .insert({
           user_id: userId,
@@ -84,70 +103,56 @@ export const createCheckoutSession = async (req, res) => {
         })
         .select()
         .single();
-			if (insertError) throw insertError;	
-			order = result;				
+  
+			if (error) throw error;	
+			order = data;	
+
     } else {
 			// update total amount if order exists
-			const {data: result, error: updateError } = await database
-			.from("orders")
-			.update({ total_amount: totalAmount / 100 })
-			.eq("id", order.id)
-			.eq("user_id", userId)
-			.eq("status", "pending")
-			.select()
-			.single();
-			if (updateError) throw updateError;	
-			order = result;
+			await database
+        .from("order_items")
+        .delete()
+        .eq("order_id", order.id);
+      
+      await database
+        .from("orders")
+        .update({ total_amount: totalAmount / 100 })
+        .eq("id", order.id);
     };
-		
-    // reuse existing stripe session if exists
-    if (order.checkout_session_id) {
-      return res.json({
-        id: order.checkout_session_id,
-        url: order.checkout_session_url,
-        totalAmount
-      });
-    }
-
-    //  delete old cart rows
-    await database
-      .from("cart_items")
-      .delete()
-      .eq("user_id", userId);
-
-    // insert new ones
+    
+    // insert order items
     const orderItems = products.map(item => {
-			const product = dbProducts.find(p => p.id === item.product_id);
-
-			if (!product) {
-				throw new Error(`Product not found: ${item.product_id}`);
-			}
+			const product = productMap[item.product_id];
 
 			return {
 				order_id: order.id,
 				product_id: product.id,
 				quantity: item.quantity ?? 1,
-				price: product.sale_price
+				price: Math.round(product.sale_price * 100) // store price in cents
 			};
 		});
 
-
+    // insert order items into DB
     await database.from("order_items").insert(orderItems);
 
     //  create stripe session (idempotent)
     const session = await stripe.checkout.sessions.create({
+      mode: "payment",
       payment_method_types: ["card"],
       line_items: lineItems,
-      mode: "payment",
       success_url: `${process.env.CLIENT_URL}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.CLIENT_URL}/purchase-cancel`,
-      metadata: { userId, orderId: order.id, couponCode: couponCode || "" }
+      metadata: { 
+        userId, 
+        orderId: order.id, 
+        couponCode: couponCode || "" 
+      }
     }, {
       idempotencyKey: `checkout_${order.id}`
     });
 
     // update payment record
-		const {data: paymetnUpdate, error: paymentUpdateError } = await database
+		const {error: paymentUpdateError } = await database
 			.from("payments")
 			.upsert({ 
 				order_id: order.id, 
@@ -161,17 +166,15 @@ export const createCheckoutSession = async (req, res) => {
 			.select()
 			.single();
 		if(paymentUpdateError) throw paymentUpdateError;
-		if(!paymetnUpdate ) {
-			throw new Error('Failed to create or update payment record');
-		};
 
-    res.json({ id: session.id, url: session.url, totalAmount: totalAmount / 100 });
+    return res.json({ id: session.id, url: session.url, totalAmount: totalAmount / 100 });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Checkout failed" });
+    return res.status(500).json({ message: "Checkout failed" });
   }
 };
 
+//Stripe webhook handler for successful checkout
 export const checkoutSuccess = async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -201,7 +204,7 @@ export const checkoutSuccess = async (req, res) => {
           order_id: orderId,
           user_id: userId,
           payment_method: "stripe",
-          amount: session.amount_total / 100,
+          amount: session.amount_total,
           status: "completed",
           transaction_id: sessionId,
           paid_at: new Date().toISOString()
@@ -211,6 +214,12 @@ export const checkoutSuccess = async (req, res) => {
       .select()
       .single();
     if (paymentUpdateError) throw paymentUpdateError;
+
+    //  delete old cart rows
+    await database
+      .from("cart_items")
+      .delete()
+      .eq("user_id", userId);
 
     res.json({ message: "Checkout successful", order: updatedOrder, payment: paymentUpdate.status });
   } catch (error) {
