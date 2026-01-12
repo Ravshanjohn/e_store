@@ -136,6 +136,9 @@ export const createCheckoutSession = async (req, res) => {
     await database.from("order_items").insert(orderItems);
 
     //  create stripe session (idempotent)
+    // Use timestamp to make idempotency key unique for each checkout attempt
+    const idempotencyKey = `checkout_${order.id}_${Date.now()}`;
+    
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -148,7 +151,7 @@ export const createCheckoutSession = async (req, res) => {
         couponCode: couponCode || "" 
       }
     }, {
-      idempotencyKey: `checkout_${order.id}`
+      idempotencyKey
     });
 
     // update payment record
