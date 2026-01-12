@@ -10,13 +10,13 @@ const ProductCard = ({ product }) => {
 	const [imageLoaded, setImageLoaded] = useState(false);
 	const [imageError, setImageError] = useState(false);
 
-	const handleAddToCart = () => {
+	const handleAddToCart = async () => {
 		if (!user) {
 			toast.error("Please login to add products to cart", { id: "login" });
 			return;
 		} else {
 			// add to cart
-			addToCart(product);
+			await addToCart(product);
 		}
 	};
 
