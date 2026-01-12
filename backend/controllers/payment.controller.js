@@ -7,6 +7,12 @@ export const createCheckoutSession = async (req, res) => {
 
   if (!userId) return res.status(400).json({ message: "User not found" });
 
+  // Validate CLIENT_URL is set
+  if (!process.env.CLIENT_URL) {
+    console.error("CLIENT_URL environment variable is not set");
+    return res.status(500).json({ message: "Server configuration error" });
+  }
+
   try {
     if (!Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "Invalid products" });
@@ -178,8 +184,8 @@ export const createCheckoutSession = async (req, res) => {
 
     return res.json({ id: session.id, url: session.url, totalAmount: totalAmount / 100 });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Checkout failed" });
+    console.error("Checkout error:", err.message || err);
+    return res.status(500).json({ message: "Checkout failed", error: err.message });
   }
 };
 
