@@ -61,12 +61,18 @@ export const createCheckoutSession = async (req, res) => {
 
       totalAmount += unitAmount * item.quantity;
 
+      // Only include image if it's a valid URL under 2048 characters
+      const imageUrl = product.image_url;
+      const isValidImageUrl = imageUrl && 
+        imageUrl.length <= 2048 && 
+        (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
+
       return {
         price_data: {
           currency: "usd",
           product_data: {
             name: product.name,
-            images: [product.image_url],
+            ...(isValidImageUrl && { images: [imageUrl] })
           },
           unit_amount: unitAmount
         },
