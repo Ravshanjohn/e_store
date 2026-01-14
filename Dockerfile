@@ -11,10 +11,10 @@ COPY frontend/package*.json frontend/
 RUN npm install --prefix frontend
 
 # Copy backend source code
-COPY backend/ backend/
+COPY backend ./backend/
 
 # Copy frontend source code and build
-COPY frontend/ frontend/
+COPY frontend ./frontend/
 RUN npm run build --prefix frontend
 
 EXPOSE 5000
