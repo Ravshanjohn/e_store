@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { ShoppingCart } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
@@ -19,6 +19,10 @@ const ProductCard = ({ product }) => {
 			await addToCart(product);
 		}
 	};
+
+	useEffect(() => {
+		addToCart(product, 0);
+	}, [addToCart, product]);
 
 	return (
 		<div className='flex w-full h-full relative flex-col overflow-hidden rounded-lg border border-gray-700 shadow-lg bg-gray-900 transition-transform duration-300 hover:scale-105'>

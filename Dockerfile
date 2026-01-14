@@ -19,4 +19,6 @@ RUN npm run build --prefix frontend
 
 EXPOSE 5000
 
+ENV NODE_ENV=production
+
 CMD ["npm", "start"]
