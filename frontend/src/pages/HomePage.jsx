@@ -18,7 +18,7 @@ const HomePage = () => {
 
 	useEffect(() => {
 		fetchFeaturedProducts();
-	}, [fetchFeaturedProducts]);
+	}, []);
 
 	return (
 		<div className='relative min-h-screen text-white overflow-hidden'>
