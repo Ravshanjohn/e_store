@@ -73,7 +73,7 @@ export const useCartStore = create((set, get) => ({
 			});
 			get().calculateTotals();
 		} catch (error) {
-			toast.error(error.response.data.message || "An error occurred");
+			return toast.error(error.response.data.message || "An error occurred");
 		}
 	},
 
